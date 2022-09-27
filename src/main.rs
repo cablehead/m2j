@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{VecDeque, HashMap};
 
 use serde::Serialize;
 
@@ -21,11 +21,12 @@ fn spans_to_markdown(spans: &Vec<Span>) -> String {
     return markdown::generate_markdown(vec![Paragraph(spans.to_vec())]);
 }
 
-fn sub_m2j(mut blocks: std::slice::Iter<Block>) -> Node {
-    match &blocks.next().unwrap() {
+fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
+    match &blocks.pop_front().unwrap() {
         Header(spans, _size) => {
             let header = spans_to_markdown(&spans);
-            let node = sub_m2j(blocks);
+            println!("Header");
+            let node = _blocks(blocks);
             let map = HashMap::from([(header, node)]);
             Node::Header(map)
         }
@@ -34,11 +35,12 @@ fn sub_m2j(mut blocks: std::slice::Iter<Block>) -> Node {
             let items = items.iter().map(|item| match &item {
                 ListItem::Simple(spans) => Node::Leaf(spans_to_markdown(&spans)),
                 ListItem::Paragraph(blocks) => {
-                    let mut blocks = blocks.iter();
-                    match blocks.next().unwrap() {
+                    let mut blocks = VecDeque::from(blocks.to_owned());
+                    match blocks.pop_front().unwrap() {
                         Block::Paragraph(spans) => {
                             let header = spans_to_markdown(&spans);
-                            let node = sub_m2j(blocks);
+                            println!("ListItem::Paragraph");
+                            let node = _blocks(&mut blocks);
                             let map = HashMap::from([(header, node)]);
                             Node::Header(map)
                         }
@@ -55,8 +57,9 @@ fn sub_m2j(mut blocks: std::slice::Iter<Block>) -> Node {
 
 fn m2j(s: &str) -> Node {
     let blocks = markdown::tokenize(s);
-    let blocks = blocks.iter();
-    return sub_m2j(blocks);
+    let mut blocks = VecDeque::from(blocks);
+    let node =  _blocks(&mut blocks);
+    return node;
 }
 
 #[cfg(test)]
@@ -71,7 +74,11 @@ mod tests {
     - one
         - one.1
     - two
-    - three"}
+    - three
+
+    # SaaS
+    - [ ] markdown to json cli
+    "}
         .into());
         println!("{}", serde_json::to_string(&j).unwrap());
     }
