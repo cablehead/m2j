@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 
 use serde::Serialize;
 
@@ -58,8 +58,19 @@ fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
 fn m2j(s: &str) -> Node {
     let blocks = markdown::tokenize(s);
     let mut blocks = VecDeque::from(blocks);
-    let node =  _blocks(&mut blocks);
-    return node;
+    let node = _blocks(&mut blocks);
+
+    if blocks.is_empty() {
+        return node;
+    }
+
+    let mut items = vec![node];
+
+    while !blocks.is_empty() {
+        items.push(_blocks(&mut blocks));
+    }
+
+    return Node::Items(items);
 }
 
 #[cfg(test)]
@@ -69,17 +80,41 @@ mod tests {
 
     #[test]
     fn test_m2j() {
-        let j = m2j(indoc! {"
-    # Todo
-    - one
-        - one.1
-    - two
-    - three
+        let res = m2j(indoc! {"
+        # Todo
+        - one
+            - one.1
+        - two
+        - three
 
-    # SaaS
-    - [ ] markdown to json cli
-    "}
+        # SaaS
+        - [ ] markdown to json cli
+        "}
         .into());
-        println!("{}", serde_json::to_string(&j).unwrap());
+
+        let got = serde_json::to_string_pretty(&res).unwrap();
+
+        assert_eq!(
+            got,
+            indoc! {r#"
+        [
+          {
+            "Todo": [
+              {
+                "one": [
+                  "one.1"
+                ]
+              },
+              "two",
+              "three"
+            ]
+          },
+          {
+            "SaaS": [
+              "[ ] markdown to json cli"
+            ]
+          }
+        ]"#}
+        );
     }
 }
