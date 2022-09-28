@@ -46,7 +46,13 @@ fn _headers(
     spans: Vec<Span>,
     size: &usize,
 ) {
-    map.insert(spans_to_markdown(&spans), _blocks(blocks));
+    let node = if blocks.is_empty() {
+        Node::Leaf("".to_string())
+    } else {
+        _blocks(blocks)
+    };
+
+    map.insert(spans_to_markdown(&spans), node);
 
     if let Some(Header(_, next_size)) = blocks.front() {
         if next_size >= size {
@@ -115,7 +121,6 @@ mod tests {
         - [ ] markdown to json cli
         "}
         .into());
-
         assert_eq!(
             got,
             Node::Header(HashMap::from([
@@ -149,23 +154,21 @@ mod tests {
 
     #[test]
     fn test_m2j_header_without_children() {
-        let res = m2j(indoc! {"
+        let got = m2j(indoc! {"
         # Todo
 
         ## Work
         "}
         .into());
-
-        let got = serde_json::to_string_pretty(&res).unwrap();
-        //println!("{}", got);
-
         assert_eq!(
             got,
-            indoc! {r#"
-            {
-              "Todo": "Work"
-              }
-            "#}
+            Node::Header(HashMap::from([(
+                "Todo".to_string(),
+                Node::Header(HashMap::from([(
+                    "Work".to_string(),
+                    Node::Leaf("".to_string())
+                )]))
+            )]))
         );
     }
 }
