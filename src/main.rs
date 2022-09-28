@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
- use std::io::Read;
+use std::io::Read;
 
 use serde::Serialize;
 
@@ -12,7 +12,7 @@ fn main() {
     println!("{}", serde_json::to_string(&m2j(&s)).unwrap());
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 #[serde(untagged)]
 enum Node {
     Header(HashMap<String, Node>),
@@ -91,15 +91,15 @@ fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use indoc::indoc;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_m2j_complex() {
-        let res = m2j(indoc! {"
+        let got = m2j(indoc! {"
         # Todo
 
         ## Work
@@ -116,31 +116,34 @@ mod tests {
         "}
         .into());
 
-        let got = serde_json::to_string_pretty(&res).unwrap();
-        //println!("{}", got);
-
         assert_eq!(
             got,
-            indoc! {r#"
-            {
-              "SaaS": [
-                "[ ] markdown to json cli"
-              ],
-              "Todo": {
-                "Work": [
-                  {
-                    "one": [
-                      "one.1"
-                    ]
-                  },
-                  "two",
-                  "three"
-                ],
-                "Home": [
-                  "order shelving"
-                ]
-              }
-            }"#}
+            Node::Header(HashMap::from([
+                (
+                    "Todo".to_string(),
+                    Node::Header(HashMap::from([
+                        (
+                            "Work".to_string(),
+                            Node::Items(vec![
+                                Node::Header(HashMap::from([(
+                                    "one".to_string(),
+                                    Node::Items(vec![Node::Leaf("one.1".to_string())])
+                                )])),
+                                Node::Leaf("two".to_string()),
+                                Node::Leaf("three".to_string()),
+                            ])
+                        ),
+                        (
+                            "Home".to_string(),
+                            Node::Items(vec![Node::Leaf("order shelving".to_string())])
+                        ),
+                    ]))
+                ),
+                (
+                    "SaaS".to_string(),
+                    Node::Items(vec![Node::Leaf("[ ] markdown to json cli".to_string())])
+                ),
+            ]))
         );
     }
 
