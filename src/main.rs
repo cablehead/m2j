@@ -93,7 +93,13 @@ fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
             Node::Items(items.collect::<Vec<Node>>())
         }
 
-        _ => todo!(),
+        Paragraph(spans) => {
+            Node::Leaf(spans_to_markdown(spans))
+        }
+
+        todo => {
+            panic!("TODO: {:?}", todo);
+        }
     }
 }
 
@@ -170,5 +176,11 @@ mod tests {
                 )]))
             )]))
         );
+    }
+
+    #[test]
+    fn test_m2j_plain_text() {
+        let got = m2j("plain text".into());
+        assert_eq!(got, Node::Leaf("plain text".to_string()));
     }
 }
