@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+ use std::io::Read;
 
 use serde::Serialize;
 
@@ -6,7 +7,9 @@ use markdown::Block::{Header, Paragraph, UnorderedList};
 use markdown::{Block, ListItem, Span};
 
 fn main() {
-    println!("Hello, world!");
+    let mut data = String::new();
+    std::io::stdin().read_to_string(&mut data).unwrap();
+    println!("Hello, world {}", data);
 }
 
 #[derive(Debug, Serialize)]
