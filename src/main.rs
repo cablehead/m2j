@@ -21,13 +21,31 @@ fn spans_to_markdown(spans: &Vec<Span>) -> String {
     return markdown::generate_markdown(vec![Paragraph(spans.to_vec())]);
 }
 
+fn _headers(
+    map: &mut HashMap<String, Node>,
+    blocks: &mut VecDeque<Block>,
+    spans: Vec<Span>,
+    size: &usize,
+) {
+    map.insert(spans_to_markdown(&spans), _blocks(blocks));
+
+    if let Some(Header(_, next_size)) = blocks.front() {
+        if next_size >= size {
+            match blocks.pop_front() {
+                Some(Header(next_spans, next_size)) => {
+                    _headers(map, blocks, next_spans.to_vec(), &next_size);
+                }
+                _ => unimplemented!(),
+            }
+        }
+    }
+}
+
 fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
     match &blocks.pop_front().unwrap() {
-        Header(spans, _size) => {
-            let header = spans_to_markdown(&spans);
-            println!("Header");
-            let node = _blocks(blocks);
-            let map = HashMap::from([(header, node)]);
+        Header(spans, size) => {
+            let mut map = HashMap::new();
+            _headers(&mut map, blocks, spans.to_vec(), size);
             Node::Header(map)
         }
 
@@ -39,7 +57,6 @@ fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
                     match blocks.pop_front().unwrap() {
                         Block::Paragraph(spans) => {
                             let header = spans_to_markdown(&spans);
-                            println!("ListItem::Paragraph");
                             let node = _blocks(&mut blocks);
                             let map = HashMap::from([(header, node)]);
                             Node::Header(map)
@@ -82,10 +99,15 @@ mod tests {
     fn test_m2j() {
         let res = m2j(indoc! {"
         # Todo
+
+        ## Work
         - one
             - one.1
         - two
         - three
+
+        ## Home
+        - order shelving
 
         # SaaS
         - [ ] markdown to json cli
@@ -93,28 +115,30 @@ mod tests {
         .into());
 
         let got = serde_json::to_string_pretty(&res).unwrap();
+        //println!("{}", got);
 
         assert_eq!(
             got,
             indoc! {r#"
-        [
-          {
-            "Todo": [
-              {
-                "one": [
-                  "one.1"
+            {
+              "SaaS": [
+                "[ ] markdown to json cli"
+              ],
+              "Todo": {
+                "Work": [
+                  {
+                    "one": [
+                      "one.1"
+                    ]
+                  },
+                  "two",
+                  "three"
+                ],
+                "Home": [
+                  "order shelving"
                 ]
-              },
-              "two",
-              "three"
-            ]
-          },
-          {
-            "SaaS": [
-              "[ ] markdown to json cli"
-            ]
-          }
-        ]"#}
+              }
+            }"#}
         );
     }
 }
