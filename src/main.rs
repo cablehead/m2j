@@ -7,9 +7,9 @@ use markdown::Block::{Header, Paragraph, UnorderedList};
 use markdown::{Block, ListItem, Span};
 
 fn main() {
-    let mut data = String::new();
-    std::io::stdin().read_to_string(&mut data).unwrap();
-    println!("Hello, world {}", data);
+    let mut s = String::new();
+    std::io::stdin().read_to_string(&mut s).unwrap();
+    println!("{}", serde_json::to_string(&m2j(&s)).unwrap());
 }
 
 #[derive(Debug, Serialize)]
@@ -18,6 +18,22 @@ enum Node {
     Header(HashMap<String, Node>),
     Items(Vec<Node>),
     Leaf(String),
+}
+
+fn m2j(s: &str) -> Node {
+    let blocks = markdown::tokenize(s);
+    let mut blocks = VecDeque::from(blocks);
+    let node = _blocks(&mut blocks);
+
+    if blocks.is_empty() {
+        return node;
+    }
+
+    let mut items = vec![node];
+    while !blocks.is_empty() {
+        items.push(_blocks(&mut blocks));
+    }
+    return Node::Items(items);
 }
 
 fn spans_to_markdown(spans: &Vec<Span>) -> String {
@@ -75,23 +91,6 @@ fn _blocks(blocks: &mut VecDeque<Block>) -> Node {
     }
 }
 
-fn m2j(s: &str) -> Node {
-    let blocks = markdown::tokenize(s);
-    let mut blocks = VecDeque::from(blocks);
-    let node = _blocks(&mut blocks);
-
-    if blocks.is_empty() {
-        return node;
-    }
-
-    let mut items = vec![node];
-
-    while !blocks.is_empty() {
-        items.push(_blocks(&mut blocks));
-    }
-
-    return Node::Items(items);
-}
 
 #[cfg(test)]
 mod tests {
@@ -99,7 +98,7 @@ mod tests {
     use indoc::indoc;
 
     #[test]
-    fn test_m2j() {
+    fn test_m2j_complex() {
         let res = m2j(indoc! {"
         # Todo
 
@@ -142,6 +141,28 @@ mod tests {
                 ]
               }
             }"#}
+        );
+    }
+
+    #[test]
+    fn test_m2j_header_without_children() {
+        let res = m2j(indoc! {"
+        # Todo
+
+        ## Work
+        "}
+        .into());
+
+        let got = serde_json::to_string_pretty(&res).unwrap();
+        //println!("{}", got);
+
+        assert_eq!(
+            got,
+            indoc! {r#"
+            {
+              "Todo": "Work"
+              }
+            "#}
         );
     }
 }
