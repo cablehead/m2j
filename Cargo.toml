@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 indoc = "1.0.7"
+itertools = "0.10.5"
 markdown = "0.3.0"
+pulldown-cmark = { version = "0.9.2", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.85"
 
