@@ -1,14 +1,14 @@
-use serde::ser::SerializeMap;
-use serde::ser::SerializeSeq;
-use serde::Serialize;
-use serde::Serializer;
-
 use std::io::Read;
 
 use itertools::Itertools;
 
+use serde::{
+    ser::{SerializeMap, SerializeSeq},
+    Serialize, Serializer,
+};
+
 use pulldown_cmark::{
-    Event::{End, Start, Text},
+    Event::{End, SoftBreak, Start, Text},
     HeadingLevel, Options, Parser, Tag,
 };
 
@@ -65,6 +65,7 @@ fn _go(parser: &mut Parser) -> Node {
     let mut depth = Vec::<(HeadingLevel, Vec<(String, Vec<Node>)>)>::new();
 
     while let Some(next) = parser.next() {
+        // println!("PUMP ret={:?} items={:?} next={:?}", ret, items, next);
         match next {
             Start(Tag::Heading(level, None, classes)) => {
                 assert!(classes.is_empty(), "todo: what are classes?");
@@ -118,7 +119,7 @@ fn _go(parser: &mut Parser) -> Node {
             Start(Tag::List(_)) => {
                 let node = _go(parser);
                 let node = match node {
-                    Node::Items(items) => Node::Items(items) ,
+                    Node::Items(items) => Node::Items(items),
                     Node::Leaf(text) => Node::Items(vec![Node::Leaf(text)]),
                     _ => todo!(),
                 };
@@ -157,6 +158,23 @@ fn _go(parser: &mut Parser) -> Node {
             }
 
             Text(text) => items.push(Node::Leaf(text.to_string())),
+
+            SoftBreak => {
+                // assumes the SoftBreak seperates two Leaf items
+                // one item is already on the stack, and we need to collect the next one
+                items.push(_go(parser));
+
+                let to_join = items.split_off(items.len() - 2);
+                let joined = to_join
+                    .iter()
+                    .map(|node| match node {
+                        Node::Leaf(s) => s.trim().to_string(),
+                        _ => unimplemented!(),
+                    })
+                    .format(" ");
+                items.push(Node::Leaf(joined.to_string()));
+                continue;
+            }
 
             End(_) => break,
 
@@ -239,10 +257,7 @@ mod tests {
         let got = mnj(indoc! {"
         - one
         "});
-        assert_eq!(
-            serde_json::to_string(&got).unwrap(),
-            r#"["one"]"#
-        );
+        assert_eq!(serde_json::to_string(&got).unwrap(), r#"["one"]"#);
     }
 
     #[test]
