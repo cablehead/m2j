@@ -204,6 +204,15 @@ mod tests {
     }
 
     #[test]
+    fn soft_break() {
+        let got = mnj(indoc! {"
+        soft
+        break
+        "});
+        assert_eq!(serde_json::to_string(&got).unwrap(), r#""soft break""#);
+    }
+
+    #[test]
     fn header_to_plain_text() {
         let got = mnj(indoc! {"
         # Todo
