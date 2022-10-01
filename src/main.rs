@@ -296,9 +296,11 @@ mod tests {
         let got = mnj(indoc! {"
         # Todo
         do it
+        soft break
         ## More
         even
         "});
+    println!("{}", serde_json::to_string(&got).unwrap());
         assert_eq!(
             serde_json::to_string(&got).unwrap(),
             r#"{"Todo":["do it",{"More":"even"}]}"#
