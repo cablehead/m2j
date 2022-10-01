@@ -59,13 +59,6 @@ impl Serialize for Node {
     }
 }
 
-fn compact_nodes(mut nodes: Vec<Node>) -> Node {
-    if nodes.len() == 1 {
-        return nodes.pop().unwrap();
-    }
-    return Node::Items(nodes);
-}
-
 fn _go(parser: &mut Parser) -> Node {
     let mut ret = Vec::<Node>::new();
     let mut items = Vec::<Node>::new();
@@ -182,7 +175,10 @@ fn _go(parser: &mut Parser) -> Node {
     }
 
     ret.append(&mut items);
-    return compact_nodes(ret);
+    if ret.len() == 1 {
+        return ret.pop().unwrap();
+    }
+    return Node::Items(ret);
 }
 
 fn mnj(markdown: &str) -> Node {
