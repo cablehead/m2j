@@ -20,7 +20,7 @@ use pulldown_cmark::{
 fn main() {
     let mut s = String::new();
     std::io::stdin().read_to_string(&mut s).unwrap();
-    println!("{}", serde_json::to_string(&m2j(&s)).unwrap());
+    println!("{}", serde_json::to_string(&mnj(&s)).unwrap());
 }
 
 #[derive(Debug, PartialEq)]
@@ -185,7 +185,7 @@ fn _go(parser: &mut Parser) -> Node {
     return compact_nodes(ret);
 }
 
-fn m2j(markdown: &str) -> Node {
+fn mnj(markdown: &str) -> Node {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TASKLISTS);
     let mut parser = Parser::new_ext(markdown, options);
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn plain_text() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         plain text
         "});
         assert_eq!(serde_json::to_string(&got).unwrap(), r#""plain text""#);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn header_to_plain_text() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         # Todo
         Foo
         "});
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn list() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         - one
         - two
         - three
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn list_with_one_item() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         - one
         "});
         assert_eq!(
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn nested_list() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         - one
             - one.1
             - one.2
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn sibling_headers() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         # Todo
         do it
         # More
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn nested_headers() {
-        let got = m2j(indoc! {"
+        let got = mnj(indoc! {"
         # Todo
         do it
         ## More
