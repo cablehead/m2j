@@ -68,7 +68,28 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
     type Item = pulldown_cmark::Event<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.parser.next()
+        if None == self.prev {
+            self.prev = self.parser.next()
+        }
+
+        let next = self.parser.next();
+
+        if let Some(SoftBreak) = next {
+            let more = if let Some(Text(text)) = self.parser.next() {
+                text
+            } else {
+                todo!()
+            };
+            let text = match &self.prev {
+                Some(Text(text)) => text,
+                _ => todo!(),
+            };
+            println!("{}", text);
+        }
+
+        let ret = self.prev.take();
+        self.prev = next;
+        ret
     }
 }
 
@@ -249,6 +270,34 @@ mod tests {
         while let Some(next) = parser.next() {
             println!("PUMP next={:?}", next);
         }
+        /*
+        PUMP next=Start(Heading(H1, None, []))
+        PUMP next=Text(Borrowed("Header"))
+        PUMP next=End(Heading(H1, None, []))
+        PUMP next=Start(Paragraph)
+
+        --
+        PUMP next=Text(Borrowed("soft"))
+        PUMP next=SoftBreak
+        PUMP next=Text(Borrowed("break"))
+        --
+
+        PUMP next=End(Paragraph)
+        PUMP next=Start(List(None))
+        PUMP next=Start(Item)
+
+        --
+        PUMP next=Text(Borrowed("more"))
+        PUMP next=SoftBreak
+        PUMP next=Text(Borrowed("soft break"))
+        --
+
+        PUMP next=End(Item)
+        PUMP next=Start(Item)
+        PUMP next=Text(Borrowed("ok"))
+        PUMP next=End(Item)
+        PUMP next=End(List(None))
+        */
     }
 
     #[test]
