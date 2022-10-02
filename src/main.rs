@@ -8,7 +8,7 @@ use serde::{
 };
 
 use pulldown_cmark::{
-    Event::{End, SoftBreak, Start, Text},
+    Event::{self, End, SoftBreak, Start, Text},
     HeadingLevel, Options, Parser, Tag,
 };
 
@@ -56,6 +56,19 @@ impl Serialize for Node {
             }
             Node::Leaf(s) => serializer.serialize_str(s),
         }
+    }
+}
+
+struct SoftBreakFilterMap<'a> {
+    parser: Parser<'a, 'a>,
+    prev: Option<Event<'a>>,
+}
+
+impl<'a> Iterator for SoftBreakFilterMap<'a> {
+    type Item = pulldown_cmark::Event<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.parser.next()
     }
 }
 
@@ -214,6 +227,31 @@ mod tests {
     // use pretty_assertions::assert_eq;
 
     #[test]
+    fn soft_break_filter_map() {
+        let markdown = indoc! {"
+        # Header
+
+        soft
+        break
+
+        - more
+          soft break
+        - ok
+        "};
+
+        let mut options = Options::empty();
+        options.insert(Options::ENABLE_TASKLISTS);
+        let parser = Parser::new_ext(markdown, options);
+        let mut parser = SoftBreakFilterMap {
+            parser: parser,
+            prev: None,
+        };
+        while let Some(next) = parser.next() {
+            println!("PUMP next={:?}", next);
+        }
+    }
+
+    #[test]
     fn plain_text() {
         let got = mnj(indoc! {"
         plain text
@@ -300,7 +338,7 @@ mod tests {
         ## More
         even
         "});
-    println!("{}", serde_json::to_string(&got).unwrap());
+        println!("{}", serde_json::to_string(&got).unwrap());
         assert_eq!(
             serde_json::to_string(&got).unwrap(),
             r#"{"Todo":["do it",{"More":"even"}]}"#
