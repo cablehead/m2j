@@ -98,7 +98,7 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
     }
 }
 
-fn _go(parser: &mut Parser) -> Node {
+fn _go(parser: &mut SoftBreakFilterMap) -> Node {
     let mut ret = Vec::<Node>::new();
     let mut items = Vec::<Node>::new();
     let mut depth = Vec::<(HeadingLevel, Vec<(String, Vec<Node>)>)>::new();
@@ -198,23 +198,6 @@ fn _go(parser: &mut Parser) -> Node {
 
             Text(text) => items.push(Node::Leaf(text.to_string())),
 
-            SoftBreak => {
-                // assumes the SoftBreak seperates two Leaf items
-                // one item is already on the stack, and we need to collect the next one
-                items.push(_go(parser));
-
-                let to_join = items.split_off(items.len() - 2);
-                let joined = to_join
-                    .iter()
-                    .map(|node| match node {
-                        Node::Leaf(s) => s.trim().to_string(),
-                        _ => unimplemented!(),
-                    })
-                    .format(" ");
-                items.push(Node::Leaf(joined.to_string()));
-                continue;
-            }
-
             End(_) => break,
 
             todo => {
@@ -241,7 +224,11 @@ fn _go(parser: &mut Parser) -> Node {
 fn mnj(markdown: &str) -> Node {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TASKLISTS);
-    let mut parser = Parser::new_ext(markdown, options);
+    let parser = Parser::new_ext(markdown, options);
+    let mut parser = SoftBreakFilterMap {
+        parser: parser,
+        prev: None,
+    };
     let node = _go(&mut parser);
     return node;
 }
@@ -371,7 +358,7 @@ mod tests {
         println!("{}", serde_json::to_string(&got).unwrap());
         assert_eq!(
             serde_json::to_string(&got).unwrap(),
-            r#"{"Todo":["do it",{"More":"even"}]}"#
+            r#"{"Todo":["do it soft break",{"More":"even"}]}"#
         );
     }
 }
