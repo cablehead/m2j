@@ -74,26 +74,27 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
 
         let next = self.parser.next();
 
-        let ret = if let Some(SoftBreak) = next {
-            let text = match &self.prev {
-                Some(Text(text)) => text,
-                _ => todo!(),
-            };
-            let more = match self.parser.next() {
-                Some(Text(text)) => text,
-                _ => todo!(),
-            };
-            let text = text.trim();
-            let more = more.trim();
-            let joined = format!("{text} {more}");
-            let event = Text(joined.into());
-            Some(event)
-        } else {
-            self.prev.take()
-        };
+        match next {
+            Some(SoftBreak) => {
+                let text = match &self.prev {
+                    Some(Text(text)) => text,
+                    _ => todo!(),
+                };
+                let more = match self.parser.next() {
+                    Some(Text(text)) => text,
+                    _ => todo!(),
+                };
+                let text = text.trim();
+                let more = more.trim();
+                let joined = format!("{text} {more}");
+                let event = Text(joined.into());
+                self.prev = self.parser.next();
+                Some(event)
+            }
 
-        self.prev = next;
-        ret
+            Some(event) => self.prev.replace(event),
+            None => self.prev.take(),
+        }
     }
 }
 
@@ -253,7 +254,7 @@ mod tests {
 
     #[test]
     fn soft_break_filter_map() {
-        let markdown = indoc! {"
+        let parser_with_soft_breaks = Parser::new(indoc! {"
         # Header
 
         soft
@@ -262,46 +263,22 @@ mod tests {
         - more
           soft break
         - ok
-        "};
-
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_TASKLISTS);
-        let parser = Parser::new_ext(markdown, options);
-        let mut parser = SoftBreakFilterMap {
-            parser: parser,
+        "});
+        let parser_with_soft_breaks = SoftBreakFilterMap {
+            parser: parser_with_soft_breaks,
             prev: None,
         };
-        while let Some(next) = parser.next() {
-            println!("PUMP next={:?}", next);
-        }
-        /*
-        PUMP next=Start(Heading(H1, None, []))
-        PUMP next=Text(Borrowed("Header"))
-        PUMP next=End(Heading(H1, None, []))
-        PUMP next=Start(Paragraph)
 
-        --
-        PUMP next=Text(Borrowed("soft"))
-        PUMP next=SoftBreak
-        PUMP next=Text(Borrowed("break"))
-        --
+        let parser_without_soft_breaks = Parser::new(indoc! {"
+        # Header
 
-        PUMP next=End(Paragraph)
-        PUMP next=Start(List(None))
-        PUMP next=Start(Item)
+        soft break
 
-        --
-        PUMP next=Text(Borrowed("more"))
-        PUMP next=SoftBreak
-        PUMP next=Text(Borrowed("soft break"))
-        --
+        - more soft break
+        - ok
+        "});
 
-        PUMP next=End(Item)
-        PUMP next=Start(Item)
-        PUMP next=Text(Borrowed("ok"))
-        PUMP next=End(Item)
-        PUMP next=End(List(None))
-        */
+        itertools::assert_equal(parser_with_soft_breaks, parser_without_soft_breaks);
     }
 
     #[test]
