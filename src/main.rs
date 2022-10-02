@@ -74,20 +74,24 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
 
         let next = self.parser.next();
 
-        if let Some(SoftBreak) = next {
-            let more = if let Some(Text(text)) = self.parser.next() {
-                text
-            } else {
-                todo!()
-            };
+        let ret = if let Some(SoftBreak) = next {
             let text = match &self.prev {
                 Some(Text(text)) => text,
                 _ => todo!(),
             };
-            println!("{}", text);
-        }
+            let more = match self.parser.next() {
+                Some(Text(text)) => text,
+                _ => todo!(),
+            };
+            let text = text.trim();
+            let more = more.trim();
+            let joined = format!("{text} {more}");
+            let event = Text(joined.into());
+            Some(event)
+        } else {
+            self.prev.take()
+        };
 
-        let ret = self.prev.take();
         self.prev = next;
         ret
     }
