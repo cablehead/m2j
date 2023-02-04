@@ -8,7 +8,7 @@ use serde::{
 };
 
 use pulldown_cmark::{
-    Event::{End, SoftBreak, Start, Text},
+    Event::{self, End, SoftBreak, Start, Text},
     HeadingLevel, Options, Parser, Tag,
 };
 
@@ -59,7 +59,46 @@ impl Serialize for Node {
     }
 }
 
-fn _go(parser: &mut Parser) -> Node {
+struct SoftBreakFilterMap<'a> {
+    parser: Parser<'a, 'a>,
+    prev: Option<Event<'a>>,
+}
+
+impl<'a> Iterator for SoftBreakFilterMap<'a> {
+    type Item = pulldown_cmark::Event<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if None == self.prev {
+            self.prev = self.parser.next()
+        }
+
+        let next = self.parser.next();
+
+        match next {
+            Some(SoftBreak) => {
+                let text = match &self.prev {
+                    Some(Text(text)) => text,
+                    _ => todo!(),
+                };
+                let more = match self.parser.next() {
+                    Some(Text(text)) => text,
+                    _ => todo!(),
+                };
+                let text = text.trim();
+                let more = more.trim();
+                let joined = format!("{text} {more}");
+                let event = Text(joined.into());
+                self.prev = self.parser.next();
+                Some(event)
+            }
+
+            Some(event) => self.prev.replace(event),
+            None => self.prev.take(),
+        }
+    }
+}
+
+fn _go(parser: &mut SoftBreakFilterMap) -> Node {
     let mut ret = Vec::<Node>::new();
     let mut items = Vec::<Node>::new();
     let mut depth = Vec::<(HeadingLevel, Vec<(String, Vec<Node>)>)>::new();
@@ -159,23 +198,6 @@ fn _go(parser: &mut Parser) -> Node {
 
             Text(text) => items.push(Node::Leaf(text.to_string())),
 
-            SoftBreak => {
-                // assumes the SoftBreak seperates two Leaf items
-                // one item is already on the stack, and we need to collect the next one
-                items.push(_go(parser));
-
-                let to_join = items.split_off(items.len() - 2);
-                let joined = to_join
-                    .iter()
-                    .map(|node| match node {
-                        Node::Leaf(s) => s.trim().to_string(),
-                        _ => unimplemented!(),
-                    })
-                    .format(" ");
-                items.push(Node::Leaf(joined.to_string()));
-                continue;
-            }
-
             End(_) => break,
 
             todo => {
@@ -202,7 +224,11 @@ fn _go(parser: &mut Parser) -> Node {
 fn mnj(markdown: &str) -> Node {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TASKLISTS);
-    let mut parser = Parser::new_ext(markdown, options);
+    let parser = Parser::new_ext(markdown, options);
+    let mut parser = SoftBreakFilterMap {
+        parser: parser,
+        prev: None,
+    };
     let node = _go(&mut parser);
     return node;
 }
@@ -212,6 +238,35 @@ mod tests {
     use super::*;
     use indoc::indoc;
     // use pretty_assertions::assert_eq;
+
+    #[test]
+    fn soft_break_filter_map() {
+        let parser_with_soft_breaks = Parser::new(indoc! {"
+        # Header
+
+        soft
+        break
+
+        - more
+          soft break
+        - ok
+        "});
+        let parser_with_soft_breaks = SoftBreakFilterMap {
+            parser: parser_with_soft_breaks,
+            prev: None,
+        };
+
+        let parser_without_soft_breaks = Parser::new(indoc! {"
+        # Header
+
+        soft break
+
+        - more soft break
+        - ok
+        "});
+
+        itertools::assert_equal(parser_with_soft_breaks, parser_without_soft_breaks);
+    }
 
     #[test]
     fn plain_text() {
@@ -300,10 +355,10 @@ mod tests {
         ## More
         even
         "});
-    println!("{}", serde_json::to_string(&got).unwrap());
+        println!("{}", serde_json::to_string(&got).unwrap());
         assert_eq!(
             serde_json::to_string(&got).unwrap(),
-            r#"{"Todo":["do it",{"More":"even"}]}"#
+            r#"{"Todo":["do it soft break",{"More":"even"}]}"#
         );
     }
 }
