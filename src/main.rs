@@ -176,6 +176,8 @@ fn _go(parser: &mut SoftBreakFilterMap) -> Node {
             Text(text) => items.push(Node::Leaf(text.to_string())),
 
             TaskListMarker(completed) => {
+                // TaskListMarker is between a Start(Tag::Item) and End(Tag::Item), with no
+                // corresponding End marker, so we return directly here to keep things balanced
                 return Node::Header(vec![
                     ("task".to_string(), vec![_go(parser)]),
                     ("completed".to_string(), vec![Node::Bool(completed)]),
