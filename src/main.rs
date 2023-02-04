@@ -8,7 +8,7 @@ use serde::{
 };
 
 use pulldown_cmark::{
-    Event::{self, End, SoftBreak, Start, Text},
+    Event::{self, End, SoftBreak, Start, TaskListMarker, Text},
     HeadingLevel, Options, Parser, Tag,
 };
 
@@ -28,6 +28,7 @@ enum Node {
     Header(Vec<(String, Vec<Node>)>),
     Items(Vec<Node>),
     Leaf(String),
+    Bool(bool),
 }
 
 impl Serialize for Node {
@@ -55,6 +56,7 @@ impl Serialize for Node {
                 seq.end()
             }
             Node::Leaf(s) => serializer.serialize_str(s),
+            Node::Bool(b) => serializer.serialize_bool(*b),
         }
     }
 }
@@ -158,45 +160,29 @@ fn _go(parser: &mut SoftBreakFilterMap) -> Node {
             Start(Tag::List(_)) => {
                 let node = _go(parser);
                 let node = match node {
+                    Node::Header(header) => Node::Header(header),
                     Node::Items(items) => Node::Items(items),
                     Node::Leaf(text) => Node::Items(vec![Node::Leaf(text)]),
-                    _ => todo!(),
+                    todo => panic!("todo: {:?}", todo),
                 };
                 items.push(node);
             }
 
             Start(Tag::Item) => {
                 let node = _go(parser);
-
-                // todo: should put this behind a cli flag
-                let node = match node {
-                    Node::Items(mut subitems) => {
-                        if let Some((Node::Leaf(_), Node::Items(_))) =
-                            subitems.iter().collect_tuple()
-                        {
-                            if let (Node::Leaf(key), Node::Items(values)) =
-                                subitems.drain(..).collect_tuple().unwrap()
-                            {
-                                Node::Header(vec![(key.to_string(), values)])
-                            } else {
-                                unimplemented!()
-                            }
-                        } else {
-                            Node::Items(subitems)
-                        }
-                    }
-
-                    Node::Leaf(text) => Node::Leaf(text),
-
-                    todo => {
-                        panic!("todo: {:?}", todo);
-                    }
-                };
-
                 items.push(node);
             }
 
             Text(text) => items.push(Node::Leaf(text.to_string())),
+
+            TaskListMarker(completed) => {
+                // TaskListMarker is between a Start(Tag::Item) and End(Tag::Item), with no
+                // corresponding End marker, so we return directly here to keep things balanced
+                return Node::Header(vec![
+                    ("task".to_string(), vec![_go(parser)]),
+                    ("completed".to_string(), vec![Node::Bool(completed)]),
+                ]);
+            }
 
             End(_) => break,
 
@@ -215,9 +201,21 @@ fn _go(parser: &mut SoftBreakFilterMap) -> Node {
     }
 
     ret.append(&mut items);
+
     if ret.len() == 1 {
         return ret.pop().unwrap();
     }
+
+    if let Some((Node::Leaf(_), Node::Items(_))) = ret.iter().collect_tuple() {
+        return if let (Node::Leaf(key), Node::Items(values)) =
+            ret.drain(..).collect_tuple().unwrap()
+        {
+            Node::Header(vec![(key.to_string(), values)])
+        } else {
+            unimplemented!()
+        };
+    }
+
     return Node::Items(ret);
 }
 
@@ -237,7 +235,7 @@ fn mnj(markdown: &str) -> Node {
 mod tests {
     use super::*;
     use indoc::indoc;
-    // use pretty_assertions::assert_eq;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn soft_break_filter_map() {
@@ -355,10 +353,44 @@ mod tests {
         ## More
         even
         "});
-        println!("{}", serde_json::to_string(&got).unwrap());
         assert_eq!(
             serde_json::to_string(&got).unwrap(),
             r#"{"Todo":["do it soft break",{"More":"even"}]}"#
+        );
+    }
+
+    #[test]
+    fn todo() {
+        let got = mnj(indoc! {"
+        ### Today
+        - [x] eat breakfast
+            - it was delicious
+            - and nutritious
+        - [ ] support markdown todos
+        - more notes, not a todo
+        "});
+        println!("{}", serde_json::to_string_pretty(&got).unwrap());
+        assert_eq!(
+            serde_json::to_string_pretty(&got).unwrap(),
+            indoc! {r#"
+            {
+              "Today": [
+                {
+                  "task": {
+                    "eat breakfast": [
+                      "it was delicious",
+                      "and nutritious"
+                    ]
+                  },
+                  "completed": true
+                },
+                {
+                  "task": "support markdown todos",
+                  "completed": false
+                },
+                "more notes, not a todo"
+              ]
+            }"#}
         );
     }
 }
