@@ -75,7 +75,7 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
         }
 
         let next = self.parser.next();
-
+        // println!("NEXT: {:?} {:?}", self.prev, next,);
         match next {
             Some(SoftBreak) => {
                 let text = match &self.prev {
@@ -86,15 +86,22 @@ impl<'a> Iterator for SoftBreakFilterMap<'a> {
                     Some(Text(text)) => text,
                     _ => todo!(),
                 };
-                let text = text.trim();
-                let more = more.trim();
+                // let text = text.trim();
+                // let more = more.trim();
                 let joined = format!("{text} {more}");
-                let event = Text(joined.into());
-                self.prev = self.parser.next();
-                Some(event)
+                self.prev = Some(Text(joined.into()));
+                self.next()
             }
 
-            Some(event) => self.prev.replace(event),
+            Some(event) => match (&self.prev, &event) {
+                (Some(Text(prev_text)), Text(next_text)) => {
+                    let joined = format!("{prev_text}{next_text}");
+                    self.prev = Some(Text(joined.into()));
+                    self.next()
+                }
+                _ => self.prev.replace(event),
+            },
+
             None => self.prev.take(),
         }
     }
@@ -242,10 +249,12 @@ mod tests {
         let parser_with_soft_breaks = Parser::new(indoc! {"
         # Header
 
+        handle
         soft
         break
 
-        - more
+        - handle
+          more
           soft break
         - ok
         "});
@@ -257,9 +266,9 @@ mod tests {
         let parser_without_soft_breaks = Parser::new(indoc! {"
         # Header
 
-        soft break
+        handle soft break
 
-        - more soft break
+        - handle more soft break
         - ok
         "});
 
@@ -276,11 +285,15 @@ mod tests {
 
     #[test]
     fn soft_break() {
-        let got = mnj(indoc! {"
-        soft
-        break
-        "});
-        assert_eq!(serde_json::to_string(&got).unwrap(), r#""soft break""#);
+        let got = mnj(indoc! {r#"
+    handle
+    soft
+    break with [inline_element] and "quotes"
+    "#});
+        assert_eq!(
+            serde_json::to_string(&got).unwrap(),
+            r#""handle soft break with [inline_element] and \"quotes\"""#
+        );
     }
 
     #[test]
