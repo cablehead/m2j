@@ -8,6 +8,7 @@ use serde::{
 };
 
 use pulldown_cmark::{
+    CodeBlockKind,
     Event::{self, End, SoftBreak, Start, TaskListMarker, Text},
     HeadingLevel, Options, Parser, Tag,
 };
@@ -178,6 +179,17 @@ fn _go(parser: &mut SoftBreakFilterMap) -> Node {
             Start(Tag::Item) => {
                 let node = _go(parser);
                 items.push(node);
+            }
+
+            Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) => {
+                let code = match _go(parser) {
+                    Node::Leaf(s) => s,
+                    _ => todo!(),
+                };
+                items.push(Node::Header(vec![
+                    ("code".to_string(), vec![Node::Leaf(code)]),
+                    ("lang".to_string(), vec![Node::Leaf(lang.to_string())]),
+                ]));
             }
 
             Text(text) => items.push(Node::Leaf(text.to_string())),
@@ -402,6 +414,40 @@ mod tests {
                   "completed": false
                 },
                 "more notes, not a todo"
+              ]
+            }"#}
+        );
+    }
+
+    #[test]
+    fn codefence() {
+        let got = mnj(indoc! {r#"
+        ### Snippet
+
+        ```rust
+        fn main() {
+            println!("Hello, world!");
+        }
+        ```
+
+        ```
+        no lang
+        ```
+        "#});
+        println!("{}", serde_json::to_string_pretty(&got).unwrap());
+        assert_eq!(
+            serde_json::to_string_pretty(&got).unwrap(),
+            indoc! {r#"
+            {
+              "Snippet": [
+                {
+                  "code": "fn main() {\n    println!(\"Hello, world!\");\n}\n",
+                  "lang": "rust"
+                },
+                {
+                  "code": "no lang\n",
+                  "lang": ""
+                }
               ]
             }"#}
         );
